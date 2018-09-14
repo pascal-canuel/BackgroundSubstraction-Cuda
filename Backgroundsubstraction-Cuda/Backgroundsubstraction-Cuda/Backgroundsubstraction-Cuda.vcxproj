@@ -163,6 +163,9 @@
     <ClCompile Include="Backgroundsubstraction-Cuda.cpp" />
     <ClCompile Include="stdafx.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Kernel.cu" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\..\..\..\..\..\..\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v9.2\extras\visual_studio_integration\MSBuildExtensions\CUDA 9.2.targets" />

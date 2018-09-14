@@ -36,4 +36,9 @@
       <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Kernel.cu">
+      <Filter>Fichiers sources</Filter>
+    </CudaCompile>
+  </ItemGroup>
 </Project>
