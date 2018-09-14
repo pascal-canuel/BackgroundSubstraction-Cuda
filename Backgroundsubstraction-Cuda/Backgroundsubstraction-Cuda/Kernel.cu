@@ -159,7 +159,6 @@ extern "C" bool GPGPU_TstImg_CV_8U(cv::Mat* img, cv::Mat* GPGPUimg)
 		goto Error;
 	}
 
-	return true;
 Error:
 	cudaFree(devImage);
 	cudaFree(devImageOut);
@@ -168,13 +167,9 @@ Error:
 }
 // Transfert img to imgout to see how opencv image can be acces in GPGPU
 
-__global__ void Kernel_Sobel()
-{
-
-}
-
 //	TODO add color
-__global__ void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue)
+__global__ 
+void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue)
 {
 	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
 	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
@@ -192,9 +187,10 @@ __global__ void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int
 			imgout[Index + 2] = 0;
 		}
 		else {
-			imgout[Index] = 255;
-			imgout[Index + 1] = 255;
-			imgout[Index + 2] = 255;
+			//	REPLACE WITH RGB COLORS
+			imgout[Index] = img[Index];
+			imgout[Index + 1] = img[Index + 1];
+			imgout[Index + 2] = img[Index + 2];
 		}
 	}
 
@@ -222,7 +218,7 @@ extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUi
 	cudaStatus = cudaMemcpy(gDevImage, imgHSV->data, imageSize, cudaMemcpyHostToDevice);
 
 	//	4. Launch kernel
-	Kernel_ThresholdHSV << <dimGrid, dimBlock >> >(gDevImage, gDevImageOut, imgHSV->step1(), imgHSV->rows, 38, 95);
+	Kernel_ThresholdHSV << <dimGrid, dimBlock >> >(gDevImage, gDevImageOut, imgHSV->step1(), imgHSV->rows, 38, 89);
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess)
@@ -242,13 +238,159 @@ extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUi
 	cudaStatus = cudaMemcpy(GPGPUimg->data, gDevImageOut, imageSize, cudaMemcpyDeviceToHost);
 
 	//	6. Free GPU memory
-	cudaFree(gDevImage);
-	cudaFree(gDevImageOut);
-
-	return true;
 Error:
 	cudaFree(gDevImage);
 	cudaFree(gDevImageOut);
+
+	return cudaStatus;
+}
+
+__device__
+int abs(int grad) {
+	if (grad < 0) {
+		return -1 * grad;
+	}
+	else {
+		return grad;
+	}
+}
+
+__global__ void Kernel_Sobel(uchar* img, uchar* imgout, int ImgWidth, int imgHeigh, int* gradientAll) // , int* maskX, int* maskY
+{
+	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
+	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
+	int Index = (ImgNumLigne * ImgWidth) + (ImgNumColonne * 3);
+	int nani = (ImgNumLigne * (ImgWidth/3)) + ImgNumColonne;
+
+	if ((ImgNumColonne < ImgWidth / 3) && (ImgNumLigne < imgHeigh)) 
+	{
+
+		if ((ImgNumColonne == ImgWidth - 1) || (ImgNumLigne == imgHeigh - 1) || (ImgNumColonne == ImgWidth - 2) || (ImgNumLigne == imgHeigh - 2)) {
+			imgout[Index] = 0;
+			imgout[Index + 1] = 0;
+			imgout[Index + 2] = 0;
+
+			gradientAll[nani] = 0;
+		}
+		else {
+			int y = ImgNumLigne; // change imgnumligne pour y
+			int x = ImgNumColonne;
+			int i = Index;
+			//imgout ->>> int 
+
+			//	Gradient X ne pas calculer * 0
+			int gradX = img[i] * -1 + img[i + 1] * 0 + img[i + 2] * 1;
+			i = ((ImgNumLigne + 1) * ImgWidth) + (ImgNumColonne * 3);
+			gradX += img[i] * -2 + img[i + 1] * 0 + img[i + 2] * 2;
+			i = ((ImgNumLigne + 2) * ImgWidth) + (ImgNumColonne * 3);
+			gradX += img[i] * -1 + img[i + 1] * 0 + img[i + 2] * 1;
+
+			i = (ImgNumLigne * ImgWidth) + (ImgNumColonne * 3);
+
+			//	Gradient Y
+			int gradY = img[i] * -1 + img[i + 1] * -2 + img[i + 2] * -1;
+			i = ((ImgNumLigne + 1) * ImgWidth) + (ImgNumColonne * 3);
+			gradY += img[i] * 0 + img[i + 1] * 0 + img[i + 2] * 0;
+			i = ((ImgNumLigne + 2) * ImgWidth) + (ImgNumColonne * 3);
+			gradY += img[i] * 1 + img[i + 1] * 2 + img[i + 2] * 1;
+
+			//	Gradient 
+			int gradient = abs(gradX) + abs(gradY);
+
+			int map = (gradient * 255) / 1076;
+
+			imgout[Index] = map;
+			imgout[Index + 1] = map;
+			imgout[Index + 2] = map;
+
+			gradientAll[nani] = gradient;
+		}	
+	}
+
+	return;
+}
+
+extern "C" bool GPGPU_Sobel(cv::Mat* imgTresh, cv::Mat* GPGPUimg, cv::Mat* Grayscale)
+{
+	//int maskX[9] = { -1, 0, 1,  -2, 0, 2,  -1, 0, 1 };
+	//int maskY[9] = { -1, -2, -1,  0, 0, 0,  1, 2, 1 };
+
+	//	1. Initialize data
+	cudaError_t cudaStatus;
+	uchar* gDevImage;
+	uchar* gDevImageOut;
+	int* gGradient;
+	//int* gX;
+	//int* gY;
+
+	uint imageSize = imgTresh->rows * imgTresh->step1();
+	uint gradientSize = imgTresh->rows * imgTresh->cols * sizeof(int);
+	//uint maskSize = sizeof(maskX); //	Could be maskY
+
+	/// Sobel
+	int* gradient = new int[imgTresh->rows * imgTresh->cols];
+	///
+
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid(iDivUp(imgTresh->cols, BLOCK_SIZE), iDivUp(imgTresh->rows, BLOCK_SIZE));
+
+	//	2. Allocation data
+	cudaStatus = cudaMalloc(&gDevImage, imageSize);
+	cudaStatus = cudaMalloc(&gDevImageOut, imageSize);
+	cudaStatus = cudaMalloc(&gGradient, gradientSize);
+	//cudaStatus = cudaMalloc(&gX, maskSize);
+	//cudaStatus = cudaMalloc(&gY, maskSize);
+
+
+	//	3. Copy data on GPU
+	cudaStatus = cudaMemcpy(gDevImage, imgTresh->data, imageSize, cudaMemcpyHostToDevice);
+	//cudaStatus = cudaMemcpy(gX, maskX, maskSize, cudaMemcpyHostToDevice);
+	//cudaStatus = cudaMemcpy(gY, maskY, maskSize, cudaMemcpyHostToDevice);
+
+	//	4. Launch kernel
+	Kernel_Sobel << <dimGrid, dimBlock >> >(gDevImage, gDevImageOut, imgTresh->step1(), imgTresh->rows, gGradient); // , gX, gY
+
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto Error;
+	}
+	//Wait for the kernel to end
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess)
+	{
+		fprintf(stderr, "cudaDeviceSynchronize failed!");
+		goto Error;
+	}
+
+	//	5. Copy data on CPU
+	cudaStatus = cudaMemcpy(GPGPUimg->data, gDevImageOut, imageSize, cudaMemcpyDeviceToHost);
+	cudaStatus = cudaMemcpy(gradient, gGradient, imageSize, cudaMemcpyDeviceToHost);
+
+	///	Sobel
+	int minVal = *std::min_element(gradient, gradient + imgTresh->rows * imgTresh->cols);
+	int maxVal = *std::max_element(gradient, gradient + imgTresh->rows * imgTresh->cols);
+
+	for (int y = 0; y < GPGPUimg->rows - 2; y++) {
+		for (int x = 0; x < GPGPUimg->cols - 2; x++) {
+
+			int width = GPGPUimg->cols - 2;
+			int i = width * y + x;
+			int current = gradient[i];
+
+			int map = (current * 255) / maxVal;
+
+			Grayscale->at<uchar>(y, x) = map;
+		}
+	}
+	///
+
+	//	6. Free GPU memory
+Error:
+	cudaFree(gDevImage);
+	cudaFree(gDevImageOut);
+	cudaFree(gGradient);
 
 	return cudaStatus;
 }
