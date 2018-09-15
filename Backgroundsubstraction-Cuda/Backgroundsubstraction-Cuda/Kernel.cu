@@ -169,7 +169,7 @@ Error:
 
 //	TODO add color
 __global__ 
-void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue)
+void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue, int* backGroundColor, bool replaceForeground, int* ForegroundColor)
 {
 	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
 	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
@@ -181,31 +181,42 @@ void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, 
 		int saturation = img[Index + 1];
 		int value = img[Index + 2];
 
-		if (hue > minHue && hue < maxHue) {
-			imgout[Index] = 0;
-			imgout[Index + 1] = 0;
-			imgout[Index + 2] = 0;
+		if (hue > minHue && hue < maxHue) {	//	Background-Green is black by default
+			imgout[Index] = backGroundColor[0];
+			imgout[Index + 1] = backGroundColor[1];
+			imgout[Index + 2] = backGroundColor[2];
 		}
 		else {
 			//	REPLACE WITH RGB COLORS
-			imgout[Index] = img[Index];
-			imgout[Index + 1] = img[Index + 1];
-			imgout[Index + 2] = img[Index + 2];
+			if (replaceForeground) {
+				imgout[Index] = ForegroundColor[0];
+				imgout[Index + 1] = ForegroundColor[1];
+				imgout[Index + 2] = ForegroundColor[2];
+			}
+			else {
+				imgout[Index] = img[Index];
+				imgout[Index + 1] = img[Index + 1];
+				imgout[Index + 2] = img[Index + 2];
+			}		
 		}
 	}
 
 	return;
 }
 
+int defaultForegroundColor[3] = { 255, 255, 255 };
 extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUimg, int minHue, int maxHue,
-	cv::Scalar backGroundColor, bool replaceForeground = false, cv::Scalar ForegroundColor = cv::Scalar(0, 0, 0))
+	int* backGroundColor, bool replaceForeground = false, int* ForegroundColor = defaultForegroundColor)
 {
 	//	1. Initialize data
 	cudaError_t cudaStatus;
 	uchar *gDevImage;
 	uchar *gDevImageOut;
+	int* gBgColor;
+	int* gFgColor;
 
 	uint imageSize = imgHSV->rows * imgHSV->step1();
+	uint ColorSize = sizeof(int) * 3;
 
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid(iDivUp(imgHSV->cols, BLOCK_SIZE), iDivUp(imgHSV->rows, BLOCK_SIZE));
@@ -213,12 +224,16 @@ extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUi
 	//	2. Allocation data
 	cudaStatus = cudaMalloc(&gDevImage, imageSize);
 	cudaStatus = cudaMalloc(&gDevImageOut, imageSize);
+	cudaStatus = cudaMalloc(&gBgColor, ColorSize);
+	cudaStatus = cudaMalloc(&gFgColor, ColorSize);
 
 	//	3. Copy data on GPU
 	cudaStatus = cudaMemcpy(gDevImage, imgHSV->data, imageSize, cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(gBgColor, backGroundColor, ColorSize, cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(gFgColor, ForegroundColor, ColorSize, cudaMemcpyHostToDevice);
 
 	//	4. Launch kernel
-	Kernel_ThresholdHSV << <dimGrid, dimBlock >> >(gDevImage, gDevImageOut, imgHSV->step1(), imgHSV->rows, 38, 89);
+	Kernel_ThresholdHSV << <dimGrid, dimBlock >> >(gDevImage, gDevImageOut, imgHSV->step1(), imgHSV->rows, 38, 89, gBgColor, replaceForeground, gFgColor);	//	Green Hue range 38-98
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess)
@@ -260,6 +275,8 @@ __global__ void Kernel_Sobel(uchar* img, uchar* imgout, int ImgWidth, int imgHei
 	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
 	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
 	int Index = (ImgNumLigne * ImgWidth) + (ImgNumColonne * 3);
+
+
 	int nani = (ImgNumLigne * (ImgWidth/3)) + ImgNumColonne;
 
 	if ((ImgNumColonne < ImgWidth / 3) && (ImgNumLigne < imgHeigh)) 
@@ -296,14 +313,14 @@ __global__ void Kernel_Sobel(uchar* img, uchar* imgout, int ImgWidth, int imgHei
 
 			//	Gradient 
 			int gradient = abs(gradX) + abs(gradY);
+			int norm = gradient * 0.125;
 
-			int map = (gradient * 255) / 1076;
+			imgout[Index] = norm;
+			imgout[Index + 1] = norm;
+			imgout[Index + 2] = norm;
 
-			imgout[Index] = map;
-			imgout[Index + 1] = map;
-			imgout[Index + 2] = map;
-
-			gradientAll[nani] = gradient;
+			
+			gradientAll[nani] = norm;
 		}	
 	}
 
@@ -367,24 +384,6 @@ extern "C" bool GPGPU_Sobel(cv::Mat* imgTresh, cv::Mat* GPGPUimg, cv::Mat* Grays
 	//	5. Copy data on CPU
 	cudaStatus = cudaMemcpy(GPGPUimg->data, gDevImageOut, imageSize, cudaMemcpyDeviceToHost);
 	cudaStatus = cudaMemcpy(gradient, gGradient, imageSize, cudaMemcpyDeviceToHost);
-
-	///	Sobel
-	int minVal = *std::min_element(gradient, gradient + imgTresh->rows * imgTresh->cols);
-	int maxVal = *std::max_element(gradient, gradient + imgTresh->rows * imgTresh->cols);
-
-	for (int y = 0; y < GPGPUimg->rows - 2; y++) {
-		for (int x = 0; x < GPGPUimg->cols - 2; x++) {
-
-			int width = GPGPUimg->cols - 2;
-			int i = width * y + x;
-			int current = gradient[i];
-
-			int map = (current * 255) / maxVal;
-
-			Grayscale->at<uchar>(y, x) = map;
-		}
-	}
-	///
 
 	//	6. Free GPU memory
 Error:

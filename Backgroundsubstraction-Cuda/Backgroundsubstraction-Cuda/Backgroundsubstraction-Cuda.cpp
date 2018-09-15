@@ -17,9 +17,10 @@ using namespace cv;
 
 extern "C" bool GPGPU_TstImg_CV_8U(cv::Mat* img, cv::Mat* GPGPUimg);
 
-//	TODO create type instead of scalar
-extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUimg, int minHue, int maxHue,
-	cv::Scalar backGroundColor, bool replaceForeground = false, cv::Scalar ForegroundColor = cv::Scalar(0, 0, 0));
+
+int defaultFgColor[3] = { 255, 255, 255 };
+extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUimg, int minHue, int maxHue,	
+	int* backGroundColor, bool replaceForeground = false, int* ForegroundColor = defaultFgColor);
 
 extern "C" bool GPGPU_Sobel(cv::Mat* imgHSV, cv::Mat* GPGPUimg, cv::Mat* Grayscale);
 
@@ -28,10 +29,16 @@ int main()
 {
 	Mat frame;
 	Axis axis("10.128.3.4", "etudiant", "gty970");
-	axis.GetImage(frame);
 
 	char* winName = "Trackbar";
+
 	char* winFrame = "AXIS";
+	namedWindow(winFrame, WINDOW_NORMAL);
+	resizeWindow(winFrame, 1800, 900);
+	char* winHSV = "HSV";
+	namedWindow(winHSV, WINDOW_NORMAL);
+	resizeWindow(winHSV, 1800, 900);
+
 	namedWindow(winName);
 
 	int minHue = 0;
@@ -51,7 +58,8 @@ int main()
 
 	while (true) {
 
-		//frame = imread("../Pictures/lena.png");
+		//frame = imread("../Pictures/lena.jpg");
+		axis.GetImage(frame);
 
 		if (frame.empty()) {
 			break;
@@ -67,14 +75,16 @@ int main()
 		cvtColor(frame, imgGrayscale, CV_BGR2GRAY);
 
 		GPGPU_TstImg_CV_8U(&frame, &imgHSV);
-		imshow("HSV", imgHSV);
-
-		GPGPU_BackGroundSubstractionHSV(&imgHSV, &imgTresh, minHue, maxHue, Scalar(255, 255, 255));
+		imshow(winHSV, imgHSV);
+	
+		int bgColor[3] = { 0, 0, 0 };
+		int fgColor[3] = { 255, 0, 0 };
+		GPGPU_BackGroundSubstractionHSV(&imgHSV, &imgTresh, minHue, maxHue, bgColor, true);
 		imshow("Treshold", imgTresh);
 
-		GPGPU_Sobel(&imgTresh, &imgSobel, &imgGrayscale);
+		/*GPGPU_Sobel(&imgTresh, &imgSobel, &imgGrayscale);
 		imshow("Sobel", imgSobel);
-		//imshow("Grayscale", imgGrayscale);
+		imshow("Grayscale", imgGrayscale);*/
 
 		if (waitKey(30) >= 0) break; // Quit if key entered	
 	}
