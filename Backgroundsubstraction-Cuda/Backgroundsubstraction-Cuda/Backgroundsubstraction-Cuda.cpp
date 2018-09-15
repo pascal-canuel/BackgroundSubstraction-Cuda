@@ -22,7 +22,7 @@ int defaultFgColor[3] = { 255, 255, 255 };
 extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUimg, int minHue, int maxHue,	
 	int* backGroundColor, bool replaceForeground = false, int* ForegroundColor = defaultFgColor);
 
-extern "C" bool GPGPU_Sobel(cv::Mat* imgHSV, cv::Mat* GPGPUimg, cv::Mat* Grayscale);
+extern "C" bool GPGPU_Sobel(cv::Mat* imgHSV, cv::Mat* Grayscale);
 
 int main()
 
@@ -41,24 +41,15 @@ int main()
 
 	namedWindow(winName);
 
-	int minHue = 0;
+	int lowGreen = 38;
+	int highGreen = 89;
 	int maxHue = 179;
-	createTrackbar("minHue", winName, &minHue, maxHue);
-	createTrackbar("maxHue", winName, &maxHue, maxHue);
 
-	//int minSat = 0;
-	//int maxSat = 255;
-	//createTrackbar("minSat", winName, &minSat, maxSat);
-	//createTrackbar("maxSat", winName, &maxSat, maxSat);
-
-	//int minVal = 0;
-	//int maxVal = 255;
-	//createTrackbar("minVal", winName, &minVal, maxVal);
-	//createTrackbar("maxVal", winName, &maxVal, maxVal);
+	createTrackbar("minHue", winName, &lowGreen, maxHue);
+	createTrackbar("maxHue", winName, &highGreen, maxHue);
 
 	while (true) {
 
-		//frame = imread("../Pictures/lena.jpg");
 		axis.GetImage(frame);
 
 		if (frame.empty()) {
@@ -69,7 +60,6 @@ int main()
 
 		Mat imgHSV = frame.clone();
 		Mat imgTresh = frame.clone();
-		Mat imgSobel = frame.clone();
 
 		Mat imgGrayscale;
 		cvtColor(frame, imgGrayscale, CV_BGR2GRAY);
@@ -79,12 +69,11 @@ int main()
 	
 		int bgColor[3] = { 0, 0, 0 };
 		int fgColor[3] = { 255, 0, 0 };
-		GPGPU_BackGroundSubstractionHSV(&imgHSV, &imgTresh, minHue, maxHue, bgColor, true);
+		GPGPU_BackGroundSubstractionHSV(&imgHSV, &imgTresh, lowGreen, highGreen, bgColor, true);
 		imshow("Treshold", imgTresh);
 
-		/*GPGPU_Sobel(&imgTresh, &imgSobel, &imgGrayscale);
-		imshow("Sobel", imgSobel);
-		imshow("Grayscale", imgGrayscale);*/
+		GPGPU_Sobel(&imgTresh, &imgGrayscale);
+		imshow("Sobel", imgGrayscale);
 
 		if (waitKey(30) >= 0) break; // Quit if key entered	
 	}
