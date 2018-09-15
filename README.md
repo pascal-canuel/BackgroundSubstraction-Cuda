@@ -2,7 +2,6 @@
 TP1 en système industriel intelligent - Implémentation de la conversion RGB en HSV &amp; Treshold &amp; Filtre Sobel
 
 # TODO
-- [ ] Remove saturation & value calculation
-- [ ] Only one kernel to convert hsv & treshold
-- [ ] Remove trackbar for saturation & value
-- [ ] Axis camera lag
+- [ ] Axis camera frame update is slow
+- [ ] Compute Sobel only when Fg & Bg color are black or white
+- [ ] merge hsv and treshold kernel 
