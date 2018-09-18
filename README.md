@@ -11,11 +11,12 @@
 <img src="Backgroundsubstraction-Cuda/Showcase/sobel.PNG"/>
 <img src="Backgroundsubstraction-Cuda/Showcase/trackbar.PNG"/>
 
+<h1 align="center">Green box on green background</h1>
+<img src="Backgroundsubstraction-Cuda/Showcase/originaleGreenBox.PNG"/>
+<img src="Backgroundsubstraction-Cuda/Showcase/tresholdGreenBox.PNG"/>
+
 <h1 align="center">Execution time</h1>
 <img src="Backgroundsubstraction-Cuda/Showcase/execTime.PNG"/>
+
 ## By Pascal Canuel
 
-#### TODO
-- [ ] Axis camera frame update is slow
-- [ ] mettre hue sur 180 ou 360?
-- [ ] Matrice Sobel tableau 2D device var ou harcode?
