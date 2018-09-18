@@ -11,6 +11,8 @@
 <img src="Backgroundsubstraction-Cuda/Showcase/sobel.PNG"/>
 <img src="Backgroundsubstraction-Cuda/Showcase/trackbar.PNG"/>
 
+<h1 align="center">Execution time</h1>
+<img src="Backgroundsubstraction-Cuda/Showcase/execTime.PNG"/>
 ## By Pascal Canuel
 
 #### TODO
