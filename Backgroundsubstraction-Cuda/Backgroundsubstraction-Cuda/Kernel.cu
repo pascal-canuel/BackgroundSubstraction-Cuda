@@ -74,9 +74,20 @@ void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, 
 				hue += 360;
 		}
 
-		hue = hue / 2;	//	Mettre hue sur 180
+		//	SATURATION
+		double saturation = 0;
+		if (cMax != 0) {
+			saturation = delta / cMax;
+		}
 
-		if (hue > minHue && hue < maxHue) {	//	Background-Green is black by default
+		//	VALUE
+		double value = cMax;
+
+		hue = hue / 2;	// 0-179
+		saturation = saturation * 255; // 0-255
+		value = value * 255; // 0-255
+
+		if (hue > minHue && hue < maxHue && value >= 130) {	//	Background-Green is black by default
 			imgout[Index] = backGroundColor[0];
 			imgout[Index + 1] = backGroundColor[1];
 			imgout[Index + 2] = backGroundColor[2];
