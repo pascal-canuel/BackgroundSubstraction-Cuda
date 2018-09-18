@@ -8,8 +8,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/video/tracking.hpp>
 #include "stdafx.h"
-//#include "nppdefs.h"
-//#include <npp.h>
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
@@ -44,23 +42,20 @@ double minVal(double blue, double green, double red) {
 		return red;
 }
 
-// Transfert img to imgout to see how opencv image can be acces in GPGPU
-__global__ void Kernel_Tst_Img_CV_8U(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh)
+__global__ 
+void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue, int* backGroundColor, bool replaceForeground, int* ForegroundColor)
 {
 	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
 	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
-	int Index = (ImgNumLigne * ImgWidth + ImgNumColonne * 3);
+	int Index = (ImgNumLigne * ImgWidth) + (ImgNumColonne * 3);
 
 	if ((ImgNumColonne < ImgWidth / 3) && (ImgNumLigne < imgHeigh))
 	{
-		/* Kernel Code Here */
-
 		double blue = (double)img[Index] / 255;
 		double green = (double)img[Index + 1] / 255;
 		double red = (double)img[Index + 2] / 255;
 
 		double cMax = maxVal(blue, green, red);
-
 		double cMin = minVal(blue, green, red);
 
 		double delta = cMax - cMin;
@@ -79,107 +74,7 @@ __global__ void Kernel_Tst_Img_CV_8U(uchar *img, uchar *imgout, int ImgWidth, in
 				hue += 360;
 		}
 
-		//	SATURATION
-		double saturation = 0;
-		if (cMax != 0) {
-			saturation = delta / cMax;
-		}
-
-		//	VALUE
-		double value = cMax;
-
-		imgout[Index] = (uchar)(hue / 2);
-		imgout[Index + 1] = (uchar)(saturation * 255);
-		imgout[Index + 2] = (uchar)(value * 255);
-	}
-
-	return;
-}
-
-extern "C" bool GPGPU_TstImg_CV_8U(cv::Mat* img, cv::Mat* GPGPUimg)
-{
-	cudaError_t cudaStatus;
-	uchar *devImage;
-	uchar *devImageOut;
-
-	unsigned int ImageSize = img->rows * img->step1();// step number of bytes in each row
-
-													  // Allocate memory for image
-	cudaStatus = cudaMalloc((void**)&devImage, ImageSize);
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-	// Upload the image to the GPU
-	cudaStatus = cudaMemcpy(devImage, img->data, ImageSize, cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-	// Launch a kernel on the GPU with one thread for each element.
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	//dim3 dimGrid(iDivUp(img->step1(), BLOCK_SIZE), iDivUp(img->cols, BLOCK_SIZE));
-	dim3 dimGrid(iDivUp(img->cols, BLOCK_SIZE), iDivUp(img->rows, BLOCK_SIZE));
-
-
-	// Test only
-	// Allocate memory for the result image 
-	cudaStatus = cudaMalloc((void**)&devImageOut, ImageSize);
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-
-	Kernel_Tst_Img_CV_8U << <dimGrid, dimBlock >> >(devImage, devImageOut, img->step1(), img->rows);
-	// Check for any errors launching the kernel
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto Error;
-	}
-	//Wait for the kernel to end
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "cudaDeviceSynchronize failed!");
-		goto Error;
-	}
-
-	// Download the result image from gpu
-	cudaStatus = cudaMemcpy(GPGPUimg->data, devImageOut, ImageSize, cudaMemcpyDeviceToHost);
-	if (cudaStatus != cudaSuccess)
-	{
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-Error:
-	cudaFree(devImage);
-	cudaFree(devImageOut);
-
-	return cudaStatus;
-}
-// Transfert img to imgout to see how opencv image can be acces in GPGPU
-
-//	TODO add color
-__global__ 
-void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, int minHue, int maxHue, int* backGroundColor, bool replaceForeground, int* ForegroundColor)
-{
-	int ImgNumColonne = blockIdx.x  * blockDim.x + threadIdx.x;
-	int ImgNumLigne = blockIdx.y  * blockDim.y + threadIdx.y;
-	int Index = (ImgNumLigne * ImgWidth) + (ImgNumColonne * 3);
-
-	if ((ImgNumColonne < ImgWidth / 3) && (ImgNumLigne < imgHeigh))
-	{
-		int hue = img[Index];
-		int saturation = img[Index + 1];
-		int value = img[Index + 2];
+		hue = hue / 2;	//	Mettre hue sur 180
 
 		if (hue > minHue && hue < maxHue) {	//	Background-Green is black by default
 			imgout[Index] = backGroundColor[0];
@@ -187,7 +82,6 @@ void Kernel_ThresholdHSV(uchar *img, uchar *imgout, int ImgWidth, int imgHeigh, 
 			imgout[Index + 2] = backGroundColor[2];
 		}
 		else {
-			//	REPLACE WITH RGB COLORS
 			if (replaceForeground) {
 				imgout[Index] = ForegroundColor[0];
 				imgout[Index + 1] = ForegroundColor[1];
