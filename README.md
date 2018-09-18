@@ -5,9 +5,15 @@
 
 <p align="center">TP1 en système industriel intelligent - Implémentation de la conversion RGB en HSV & Treshold & Filtre Sobel</p>
 
-#### By Pascal Canuel
+<h1 align="center">Showcase</h1>
+<img src="Backgroundsubstraction-Cuda/Showcase/frame.PNG"/>
+<img src="Backgroundsubstraction-Cuda/Showcase/treshold.PNG"/>
+<img src="Backgroundsubstraction-Cuda/Showcase/sobel.PNG"/>
+<img src="Backgroundsubstraction-Cuda/Showcase/trackbar.PNG"/>
 
-# TODO
+## By Pascal Canuel
+
+#### TODO
 - [ ] Axis camera frame update is slow
-- [ ] Compute Sobel only when Fg & Bg color are black or white
-- [ ] merge hsv and treshold kernel 
+- [ ] mettre hue sur 180 ou 360?
+- [ ] Matrice Sobel tableau 2D device var ou harcode?
