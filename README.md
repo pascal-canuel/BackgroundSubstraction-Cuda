@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/License-MIT-blue.svg">
 </p>
 
-<p align="center">TP1 en système industriel intelligent - Implémentation de la conversion RGB en HSV & Treshold & Filtre Sobel</p>
+<p align="center">TP1 en système industriel intelligent - Implémentation de la conversion RGB en HSV & Treshold & Filtre Sobel–Feldman </p>
 
 <h1 align="center">Showcase</h1>
 <img src="Backgroundsubstraction-Cuda/Pictures/frameOrigin.PNG"/>
