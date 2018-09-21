@@ -16,8 +16,6 @@
 
 using namespace cv;
 
-extern "C" bool GPGPU_TstImg_CV_8U(cv::Mat* img, cv::Mat* GPGPUimg);
-
 int defaultFgColor[3] = { 255, 255, 255 };
 extern "C" bool GPGPU_BackGroundSubstractionHSV(cv::Mat* imgHSV, cv::Mat* GPGPUimg, int minHue, int maxHue,	
 	int* backGroundColor, bool replaceForeground = false, int* ForegroundColor = defaultFgColor);
@@ -30,43 +28,40 @@ int main()
 	Mat frame;
 	Axis axis("10.128.3.4", "etudiant", "gty970");
 
-	char* winName = "Trackbar";
+	char* winName = "AXIS";
 	namedWindow(winName);
 
-	int lowGreen = 38;
-	int highGreen = 75;
-	int maxHue = 179;
+	int lowHue = 75;
+	int highHue = 150;
+	int max = 359;
 
-	createTrackbar("minHue", winName, &lowGreen, maxHue);
-	createTrackbar("maxHue", winName, &highGreen, maxHue);
+	createTrackbar("minHue", winName, &lowHue, max);
+	createTrackbar("maxHue", winName, &highHue, max);
 
 	while (true) {
-
+		//	Get actual frame from axis cam
 		axis.GetImage(frame);
-		//frame = imread("../Pictures/3.jpg");
+		//frame = imread("../Pictures/1.jpg");
 
 		if (frame.empty()) {
 			break;
 		}
 
-		imshow("AXIS", frame);
+		imshow(winName, frame);
 
-		Mat imgHSV = frame.clone();
-		Mat imgTresh = frame.clone();
-
+		//	Load another mat for sobel display
 		Mat imgGrayscale;
 		cvtColor(frame, imgGrayscale, CV_BGR2GRAY);
 		
 		int bgColor[3] = { 0, 0, 0 };
-		//int fgColor[3] = { 0, 0, 255 };
-		GPGPU_BackGroundSubstractionHSV(&imgHSV, &imgTresh, lowGreen, highGreen, bgColor, false);
-		imshow("Treshold", imgTresh);
+		int fgColor[3] = { 0, 0, 255 };
+		GPGPU_BackGroundSubstractionHSV(&frame, &frame, lowHue, highHue, bgColor, true);
+		imshow("Treshold", frame);
 
-		GPGPU_Sobel(&imgTresh, &imgGrayscale);
+		GPGPU_Sobel(&frame, &imgGrayscale);
 		imshow("Sobel", imgGrayscale);
 
-		//waitKey(0); // Wait for key entered
-		if (waitKey(30) >= 0) break; // Quit if key entered	
+		if (waitKey(5) >= 0) break; // Quit if key entered	
 	}
 
     return 0;
